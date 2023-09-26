@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Difference in JSONs</title>
+    <style>
+        *, ::after, ::before {
+            box-sizing: border-box;
+        }
+
+        body {
+            color: #4f4f4f;
+            margin: auto;
+            max-width: 125em;
+            font-size: 1.1rem;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        h2 {
+            margin-top : 50px; 
+            text-align : center; 
+            color : #333; 
+        }
+
+        small {
+            opacity: .65;
+            font-size: .68em;
+        }
+
+        p {
+            width: 50vw;
+            padding: 0 2em;
+            min-width: 40em;
+            margin: 2em auto;
+        }
+        
+        table {
+            border-collapse: collapse;
+            margin: 20px 0;
+            width: 100%;
+        }
+
+        tr {
+            display: grid;
+            grid-template-columns: 25em 1fr;
+        }
+
+        tr:nth-child(odd){
+             background-color :#f2f2f2 ; 
+        }
+    
+        th, td {
+            border: 1px solid #999;
+            border-bottom :1px solid #ddd;  
+            padding :15px;  
+        }
+
+        label {
+            color: rgba(0,0,0,.6);
+            display: inline-block;
+            margin-bottom: .5rem;
+        }
+
+        input[type="file"] {
+            display: block;
+            margin: 0;
+            cursor: pointer;
+            line-height: 2.15;
+            border-radius: .25rem;
+            overflow: hidden;
+            min-height: auto;
+            padding: 4.5px 12px 3.68px;
+            width: 25em;
+            font-weight: 400;
+            color: #4f4f4f;
+            background-color: #fff;
+            background-clip: padding-box;
+            border: 1px solid #bdbdbd;
+            appearance: none;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            border-radius: .25em;
+            border: .25em solid #f57c00;
+            height: 2em;
+            color: #4f4f4f;
+            transition: all .25s ease-in-out;
+            padding: 1em .5em;
+        }
+
+        input[type="text"].modified {
+            border-color: #4CAF50;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            color: #2f2f2f;
+            border-color: #4285f4;
+        }
+
+        .selector__file {
+            margin: 0 auto;
+        }
+
+        #selector {
+            gap: 1em;
+            margin: 5em 0;
+            display: grid;
+            border-bottom: 1px solid;
+            padding-bottom: 2em;
+            grid-template-columns: auto auto;
+        }
+
+        #progress {
+            margin: 0 auto;
+            width: 50vw;
+            border: 1px solid;
+            text-align: center;
+            min-width: 25em;
+            border-radius: .25em;
+            padding: .5em 0;
+            font-size: 1.25em;
+            font-weight: bold;
+            mix-blend-mode: color;
+            color: black;
+        }
+    
+        #save {
+            background-color: #4CAF50; 
+            border: 2px solid transparent;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            font-size: 16px;
+            transition-duration: 0.4s;
+            cursor: pointer;
+            position: fixed;
+            bottom: 2em;
+            right: 2em;
+            margin: 0;
+            padding: 1em 5em;
+        }
+    
+        #save:hover {
+            background-color: white; 
+            color: black; 
+            border: 2px solid #4CAF50;
+        }
+    
+        #translate{
+            grid-column: 1 / span 2;
+            width :90%;
+            background-color:#4285f4; 
+            color :#fff; 
+            border:none; 
+            position:relative; 
+            height :40px; 
+            box-shadow :0 2px 5px rgba(0,0,0,0.3); 
+            cursor:pointer; 
+            transition :all 0.3s ease-out; 
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>JSON Translator helper</h1>
+        <p>Compare two JSON files and show keys that are missing in the second one to help you translate them. When you are done, you can save the translated JSON, only modified keys will be added to avoid importing not yet translated keys.</p>
+    </header>
+    <div id="selector">
+        <div class="selector__file">
+            <label for="json_primary">Primary JSON</label>
+            <input type="file" id="json_primary" name="json_primary" accept=".json">
+        </div>
+        <div class="selector__file">
+            <label for="json_secondary">Secondary JSON</label>
+            <input type="file" id="json_secondary" name="json_secondary" accept=".json">
+        </div>
+        <button id="translate">Translate</button>
+    </div>
+
+    <button id="save" style="display: none;">Save</button>
+
+    <script type="text/javascript">
+        function compareJsons(arrayOfJsons) {
+            var primary = arrayOfJsons[0];
+            var secondary = arrayOfJsons[1];
+            var missingKeysMap = new Map();
+
+            var totalKeys = 0;
+            var totalMissingKeys = 0;
+            for(const group in primary) {
+                if (!secondary.hasOwnProperty(group)) {
+                    missingKeysMap.set(group, primary[group]);
+                }
+
+                for (const key in primary[group]) {
+                    totalKeys++;
+
+                    if (secondary[group] && !secondary[group].hasOwnProperty(key)) {
+                        totalMissingKeys++;
+
+                        let tempObj = missingKeysMap.get(group);
+                        if(tempObj) {
+                            tempObj[key] = primary[group][key];
+                        } else {
+                            missingKeysMap.set(group, { [key]:primary[group][key] });
+                        }
+                    }
+                }
+            }
+
+            createTraductionPercents(totalKeys, totalMissingKeys);
+            missingKeysMap.forEach((value, group) => createTable(group, value));
+        }
+
+        function createTraductionPercents(totalKeys, missingKeys) {
+            var percent = Math.round((totalKeys - missingKeys) / totalKeys * 100);
+
+            var color = '';
+            switch (true) {
+                case percent < 25:
+                    color = '#f44336';
+                    break;
+                case percent < 50:
+                    color = '#ff9800';
+                    break;
+                case percent < 75:
+                    color = '#ffc107';
+                    break;
+                case percent < 100:
+                    color = '#4caf50';
+                    break;
+                default:
+                    color = '#4285f4';
+                    break;
+            }
+
+            var div = document.createElement('div');
+            div.id = 'progress';
+            div.textContent = `Traduction: ${percent}%`;
+            div.appendChild(document.createElement('small')).textContent = ` (${totalKeys - missingKeys} / ${totalKeys})`;
+            div.style.background = `linear-gradient(to right, ${color} ${percent}%, #fff ${percent}%)`;
+            document.body.appendChild(div);
+        }
+
+        function createTable(groupName, obj) {
+            var table = document.createElement('table');
+            table.setAttribute("id", `tb_${groupName}`);
+            var headerRow = document.createElement('tr');
+            headerRow.appendChild(document.createElement('th')).textContent= "Key";
+            headerRow.appendChild(document.createElement('th')).textContent= "Value";
+            table.appendChild(headerRow);
+            
+            for( const key in obj ) {
+                var row = document.createElement('tr');
+                row.appendChild(document.createElement('td')).textContent = key;
+                var td = document.createElement('td');
+                var input = document.createElement('input');
+                input.type = 'text';
+                input.value= obj[key];
+                input.addEventListener('input', function() {
+                    this.classList.add('modified');
+                });
+                td.appendChild(input);
+                row.appendChild(td);
+                table.appendChild(row);
+            }
+            
+            var h2 = document.createElement("h2");
+            h2.textContent = `Group.${groupName}`;
+            document.body.appendChild(h2);
+            document.body.appendChild(table);
+        }
+
+        function save(objs, filename) {
+            for (const group in objs) {
+                objs[group] = Object.keys(objs[group]).sort().reduce((acc, key) => {
+                    acc[key] = objs[group][key];
+                    return acc;
+                }, {});
+            }
+
+            var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(
+                JSON.stringify(objs, null, 4)
+            );
+            var dlAnchorElem = document.createElement('a');
+
+            dlAnchorElem.setAttribute("href",     dataStr     );
+            dlAnchorElem.setAttribute("download", filename );
+            dlAnchorElem.click();
+        }
+
+        document.getElementById('translate').addEventListener('click', function() {
+            var primary = document.getElementById('json_primary').files[0];
+            var secondary = document.getElementById('json_secondary').files[0];
+
+            Promise.all([ primary, secondary ].map(file => {
+
+                return new Promise((resolve, reject) => {
+                    var FR = new FileReader();
+
+                    FR.onload = (e) => resolve(JSON.parse(e.target.result));
+                    FR.onerror = () => reject();
+
+                    FR.readAsText(file);
+                });
+
+            })).then(compareJsons);
+
+            document.getElementById('save').style.display = 'block';
+        });
+
+        document.getElementById('save').addEventListener('click', function() {
+            var main = document.getElementById('json_secondary').files[0];
+            var fr = new FileReader();
+
+            fr.onload = function(e) {
+                var mainJson = JSON.parse(e.target.result);
+                
+                document.querySelectorAll('[id^=tb_]').forEach(function (table) {
+                    var groupName = table.id.split('_')[1];
+                    table.querySelectorAll('tr').forEach(function (tr) {
+                        if(tr.querySelector('td')){
+                            var key = tr.querySelector('td').textContent;
+                            var valInput = tr.querySelector('td > input');
+                            if (valInput && valInput.classList.contains('modified')) {
+                                mainJson[groupName][key] = valInput.value;
+                            }
+                        }
+                    });
+                });
+                save(mainJson, "json_tierce.json");
+            };
+
+            fr.readAsText(main);
+        });
+    </script>
+</body>
+</html>
